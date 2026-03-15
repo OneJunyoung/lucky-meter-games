@@ -2,6 +2,7 @@
 
 import { RotateCcw } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { soundManager } from '@/utils/soundManager';
 
 interface ScoreBoardProps {
   score: number;
@@ -38,9 +39,13 @@ export default function ScoreBoard({ score, highScore, onRestart, title }: Score
       )}
 
       <motion.button
+        onMouseEnter={() => soundManager.playSynth('hover')}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        onClick={onRestart}
+        onClick={() => {
+            soundManager.playSynth('click');
+            onRestart();
+        }}
         className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 rounded-xl transition-colors font-medium text-sm"
       >
         <RotateCcw className="w-4 h-4" />

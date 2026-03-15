@@ -7,7 +7,7 @@ import dynamic from 'next/dynamic';
 // Dynamically import games to avoid large initial bundle sizes
 const CandyMatch = dynamic(() => import('@/components/games/CandyMatch'), { loading: () => <LoadingSpinner /> });
 const BubblePop = dynamic(() => import('@/components/games/BubblePop'), { loading: () => <LoadingSpinner /> });
-const DinoDash = dynamic(() => import('@/components/games/DinoDash'), { loading: () => <LoadingSpinner /> });
+const ScooterRun = dynamic(() => import('@/components/games/ScooterRun'), { loading: () => <LoadingSpinner /> });
 const DiceRoll = dynamic(() => import('@/components/games/DiceRoll'), { loading: () => <LoadingSpinner /> });
 const GhostLeg = dynamic(() => import('@/components/games/GhostLeg'), { loading: () => <LoadingSpinner /> });
 const DrawingLots = dynamic(() => import('@/components/games/DrawingLots'), { loading: () => <LoadingSpinner /> });
@@ -16,7 +16,7 @@ const Gomoku = dynamic(() => import('@/components/games/Gomoku'), { loading: () 
 const GAME_COMPONENTS: Record<string, React.ComponentType> = {
   'candy-match': CandyMatch,
   'bubble-pop': BubblePop,
-  'dino-dash': DinoDash,
+  'scooter-run': ScooterRun,
   'dice-roll': DiceRoll,
   'ghost-leg': GhostLeg,
   'drawing-lots': DrawingLots,

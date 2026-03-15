@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ScrollText, Minus, Plus } from 'lucide-react';
 import ScoreBoard from '../ScoreBoard';
+import ScaledGame from '../ScaledGame';
+import { soundManager } from '@/utils/soundManager';
 
 interface Lot {
   id: number;
@@ -31,6 +33,7 @@ export default function DrawingLots() {
     setLots(newLots);
     setHasStarted(true);
     setHasWon(false);
+    soundManager.playSynth('pop');
   };
 
   const handleReveal = (id: number) => {
@@ -57,8 +60,8 @@ export default function DrawingLots() {
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[500px]">
+    <ScaledGame logicalWidth={500} logicalHeight={520}>
+      <div className="w-full max-w-[500px] w-[500px]">
         {hasStarted && <ScoreBoard score={playCount} highScore={playCount} onRestart={resetGame} title="Drawing Lots" />}
         
         <div className="bg-slate-900/50 rounded-3xl p-6 sm:p-10 shadow-2xl border border-white/5 relative flex flex-col items-center min-h-[400px]">
@@ -78,7 +81,10 @@ export default function DrawingLots() {
                       <div className="flex items-center gap-6">
                           <button 
                             disabled={totalLots <= 2}
-                            onClick={() => setTotalLots(t => Math.max(2, t - 1))}
+                            onClick={() => {
+                                soundManager.playSynth('hover');
+                                setTotalLots(t => Math.max(2, t - 1));
+                            }}
                             className="p-3 bg-slate-800 rounded-full hover:bg-slate-700 disabled:opacity-50 transition-colors"
                           >
                             <Minus className="w-5 h-5 text-white" />
@@ -89,7 +95,10 @@ export default function DrawingLots() {
                           </div>
                           <button 
                             disabled={totalLots >= 12}
-                            onClick={() => setTotalLots(t => Math.min(12, t + 1))}
+                            onClick={() => {
+                                soundManager.playSynth('hover');
+                                setTotalLots(t => Math.min(12, t + 1));
+                            }}
                             className="p-3 bg-slate-800 rounded-full hover:bg-slate-700 disabled:opacity-50 transition-colors"
                           >
                             <Plus className="w-5 h-5 text-white" />
@@ -97,6 +106,7 @@ export default function DrawingLots() {
                       </div>
 
                       <motion.button
+                        onMouseEnter={() => soundManager.playSynth('hover')}
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={initGame}
@@ -174,6 +184,6 @@ export default function DrawingLots() {
           
         </div>
       </div>
-    </div>
+    </ScaledGame>
   );
 }

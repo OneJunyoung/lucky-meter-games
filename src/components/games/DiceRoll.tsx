@@ -1,32 +1,53 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dices } from 'lucide-react';
+import { Dices, Minus, Plus } from 'lucide-react';
 import ScoreBoard from '../ScoreBoard';
+import ScaledGame from '../ScaledGame';
+import { soundManager } from '@/utils/soundManager';
 
 export default function DiceRoll() {
   const [isRolling, setIsRolling] = useState(false);
-  const [result, setResult] = useState<number | null>(null);
+  const [numberOfDice, setNumberOfDice] = useState(1);
+  const [results, setResults] = useState<number[]>([]);
   const [rollCount, setRollCount] = useState(0);
   
-  // High score tracking highest roll sum (simplistic meta-game)
+  // High score tracking highest roll sum
   const [score, setScore] = useState(0); 
   const [highScore, setHighScore] = useState(0);
+  
+  // For animation frames
+  const [displayFaces, setDisplayFaces] = useState<number[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const rollDice = () => {
     if (isRolling) return;
     setIsRolling(true);
-    setResult(null); // hide result text while rolling
+    setResults([]);
+    soundManager.playSynth('pop'); // Play a pop sound indicating the spin started
     
+    // Start rapid face cycling animation
+    intervalRef.current = setInterval(() => {
+        const randomFaces = Array.from({length: numberOfDice}, () => Math.floor(Math.random() * 6) + 1);
+        setDisplayFaces(randomFaces);
+    }, 50);
+
     // Simulate roll delay
-    setTimeout(() => {
-      const finalVal = Math.floor(Math.random() * 6) + 1;
-      setResult(finalVal);
+    timerRef.current = setTimeout(() => {
+      if(intervalRef.current) clearInterval(intervalRef.current);
+      
+      const newResults = Array.from({length: numberOfDice}, () => Math.floor(Math.random() * 6) + 1);
+      const sum = newResults.reduce((a, b) => a + b, 0);
+
+      setDisplayFaces(newResults);
+      setResults(newResults);
       setRollCount(rc => rc + 1);
+      soundManager.playSynth('success'); // Play success when result lands
       
       setScore(s => {
-          const newScore = s + finalVal;
+          const newScore = s + sum;
           if(newScore > highScore) setHighScore(newScore);
           return newScore;
       });
@@ -36,72 +57,98 @@ export default function DiceRoll() {
   };
 
   const resetGame = () => {
+      if(intervalRef.current) clearInterval(intervalRef.current);
+      if(timerRef.current) clearTimeout(timerRef.current);
+      setIsRolling(false);
       setScore(0);
       setRollCount(0);
-      setResult(null);
-  }
+      setResults([]);
+      setDisplayFaces([]);
+  };
 
-  // Generate 3D rotations based on final value or random spinning
-  const getRotation = () => {
-    if (isRolling) {
-      // Wild spinning state
-      return {
-        rotateX: [0, 720, 1440, 2160],
-        rotateY: [0, 1080, 2160, 3240],
-        rotateZ: [0, 360, 720, 1080]
-      };
-    }
-    
-    // Settle on the specific face
-    switch(result) {
-      case 1:  return { rotateX: 0, rotateY: 0, rotateZ: 0 };
-      case 2:  return { rotateX: 0, rotateY: 180, rotateZ: 0 };
-      case 3:  return { rotateX: 0, rotateY: -90, rotateZ: 0 };
-      case 4:  return { rotateX: 0, rotateY: 90, rotateZ: 0 };
-      case 5:  return { rotateX: -90, rotateY: 0, rotateZ: 0 };
-      case 6:  return { rotateX: 90, rotateY: 0, rotateZ: 0 };
-      default: return { rotateX: 0, rotateY: 0, rotateZ: 0 };
-    }
+  const adjustDiceNumber = (delta: number) => {
+      if(isRolling) return;
+      const next = Math.max(1, Math.min(6, numberOfDice + delta));
+      setNumberOfDice(next);
+      setResults([]);
+      setDisplayFaces([]);
+      soundManager.playSynth('click');
+  };
+
+  // Grid layout depending on how many dice there are
+  const getGridClass = () => {
+      switch(numberOfDice) {
+          case 1: return "grid-cols-1 place-items-center";
+          case 2: return "grid-cols-2 gap-6 place-items-center";
+          case 3: return "grid-cols-2 gap-4 place-items-center";
+          case 4: return "grid-cols-2 gap-4 place-items-center";
+          case 5: return "grid-cols-3 gap-3 place-items-center";
+          case 6: return "grid-cols-3 gap-3 place-items-center";
+          default: return "grid-cols-2";
+      }
   };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[400px]">
+    <ScaledGame logicalWidth={400} logicalHeight={520}>
+      <div className="w-full max-w-[400px] w-[400px]">
         <ScoreBoard score={score} highScore={highScore} onRestart={resetGame} title={`Rolls: ${rollCount}`} />
         
-        <div className="w-full aspect-square bg-slate-900/50 rounded-3xl p-8 shadow-2xl flex flex-col items-center justify-center border border-white/5 relative overflow-hidden">
+        <div className="w-full aspect-[4/5] bg-slate-900/50 rounded-3xl p-6 flex flex-col items-center justify-between border border-white/5 relative overflow-hidden glass-card shadow-2xl">
             
-            {/* 3D Dice Container */}
-            <div className="relative w-32 h-32 [perspective:1000px] mb-12">
-              <motion.div
-                animate={getRotation()}
-                transition={{ 
-                    duration: isRolling ? 1.5 : 0.5, 
-                    ease: isRolling ? "linear" : "easeOut" 
-                }}
-                className="w-full h-full relative [transform-style:preserve-3d]"
-              >
-                {/* 1: Front */}
-                <DiceFace value={1} classes="[transform:translateZ(64px)]" />
-                {/* 2: Back */}
-                <DiceFace value={2} classes="[transform:rotateY(180deg)_translateZ(64px)]" />
-                {/* 3: Right */}
-                <DiceFace value={3} classes="[transform:rotateY(90deg)_translateZ(64px)]" />
-                {/* 4: Left */}
-                <DiceFace value={4} classes="[transform:rotateY(-90deg)_translateZ(64px)]" />
-                {/* 5: Top */}
-                <DiceFace value={5} classes="[transform:rotateX(90deg)_translateZ(64px)]" />
-                {/* 6: Bottom */}
-                <DiceFace value={6} classes="[transform:rotateX(-90deg)_translateZ(64px)]" />
-              </motion.div>
+            {/* Controls */}
+            <div className="flex items-center gap-4 bg-slate-950/50 px-4 py-2 rounded-2xl border border-white/10 z-10 w-full justify-between mt-2">
+                <span className="text-slate-400 font-medium text-sm">Number of Dice</span>
+                <div className="flex items-center gap-3">
+                    <button 
+                        onClick={() => adjustDiceNumber(-1)} 
+                        disabled={isRolling || numberOfDice <= 1}
+                        className="w-8 h-8 rounded-full bg-slate-800 disabled:opacity-50 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors"
+                    >
+                        <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="w-4 text-center font-bold text-white text-lg">{numberOfDice}</span>
+                    <button 
+                        onClick={() => adjustDiceNumber(1)} 
+                        disabled={isRolling || numberOfDice >= 6}
+                        className="w-8 h-8 rounded-full bg-slate-800 disabled:opacity-50 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors"
+                    >
+                        <Plus className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Dice Area */}
+            <div className={`w-full flex-1 flex items-center justify-center py-6`}>
+                <div className={`grid ${getGridClass()} w-full h-full max-h-[300px] gap-4 p-2`}>
+                   {Array.from({length: numberOfDice}).map((_, i) => {
+                       // Initially show nothing or a placeholder face before roll starts
+                       const face = displayFaces[i] || 1; 
+                       const isPlaceholder = displayFaces.length === 0;
+
+                       return (
+                           <motion.div
+                               key={i}
+                               animate={isRolling ? {
+                                   scale: [1, 1.1, 0.9, 1.05, 1],
+                                   rotate: [0, 15, -15, 5, 0]
+                               } : { scale: 1, rotate: 0 }}
+                               transition={{ duration: 0.3, repeat: isRolling ? Infinity : 0 }}
+                               className={`w-full h-full object-contain aspect-square max-w-[100px] max-h-[100px] overflow-hidden ${isPlaceholder ? 'opacity-30 grayscale' : 'opacity-100'} transition-opacity`}
+                           >
+                               <img src={`/assets/games/dice/${face}.svg`} alt={`Dice face ${face}`} className="w-full h-full object-contain pointer-events-none drop-shadow-md rounded-2xl" />
+                           </motion.div>
+                       )
+                   })}
+                </div>
             </div>
 
             <motion.button
+                onMouseEnter={() => soundManager.playSynth('hover')}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 disabled={isRolling}
                 onClick={rollDice}
-                className="px-8 py-4 bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl font-black text-xl text-white shadow-xl shadow-amber-500/20 flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full py-4 bg-gradient-to-r from-amber-400 to-orange-500 rounded-2xl font-black text-xl text-white shadow-xl shadow-amber-500/20 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed z-10"
             >
                 <Dices className="w-6 h-6" />
                 {isRolling ? 'Rolling...' : 'Roll Dice'}
@@ -109,66 +156,22 @@ export default function DiceRoll() {
             
             {/* Overlay Result Text */}
             <AnimatePresence>
-                {!isRolling && result !== null && (
+                {!isRolling && results.length > 0 && (
                     <motion.div 
-                        initial={{ opacity: 0, y: 20, scale: 0.8 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute bottom-6 font-black text-3xl text-amber-400 neon-text"
+                        className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center"
                     >
-                        You rolled a {result}!
+                        <div className="bg-slate-900/80 backdrop-blur-sm px-8 py-6 rounded-3xl border-2 border-amber-500/50 flex flex-col items-center justify-center shadow-2xl">
+                           <span className="text-slate-300 font-medium text-sm mb-1 uppercase tracking-widest">Total Sum</span>
+                           <span className="font-black text-6xl text-amber-400 neon-text">{results.reduce((a,b)=>a+b,0)}</span>
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
         </div>
       </div>
-    </div>
+    </ScaledGame>
   );
-}
-
-function DiceFace({ value, classes }: { value: number, classes: string }) {
-    // Generate dot positions based on value
-    const dots = () => {
-        switch(value) {
-            case 1: return <div className="w-6 h-6 bg-slate-900 rounded-full" />;
-            case 2: return (
-                <div className="w-full h-full flex justify-between p-2 pb-8">
-                    <div className="w-5 h-5 bg-slate-900 rounded-full self-start" />
-                    <div className="w-5 h-5 bg-slate-900 rounded-full self-end" />
-                </div>
-            );
-            case 3: return (
-                <div className="w-full h-full flex flex-col justify-between items-center p-2">
-                    <div className="w-5 h-5 bg-slate-900 rounded-full self-start" />
-                    <div className="w-5 h-5 bg-slate-900 rounded-full" />
-                    <div className="w-5 h-5 bg-slate-900 rounded-full self-end" />
-                </div>
-            );
-            case 4: return (
-                <div className="w-full h-full grid grid-cols-2 grid-rows-2 gap-2 p-3">
-                    {[0,1,2,3].map(i => <div key={i} className="w-5 h-5 bg-slate-900 rounded-full justify-self-center align-self-center" />)}
-                </div>
-            );
-            case 5: return (
-                <div className="w-full h-full relative p-2">
-                    <div className="absolute top-2 left-2 w-5 h-5 bg-slate-900 rounded-full" />
-                    <div className="absolute top-2 right-2 w-5 h-5 bg-slate-900 rounded-full" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-5 h-5 bg-slate-900 rounded-full" />
-                    <div className="absolute bottom-2 left-2 w-5 h-5 bg-slate-900 rounded-full" />
-                    <div className="absolute bottom-2 right-2 w-5 h-5 bg-slate-900 rounded-full" />
-                </div>
-            );
-            case 6: return (
-                <div className="w-full h-full grid grid-cols-2 grid-rows-3 gap-y-1 gap-x-2 p-2">
-                    {[0,1,2,3,4,5].map(i => <div key={i} className="w-5 h-5 bg-slate-900 rounded-full justify-self-center self-center" />)}
-                </div>
-            );
-        }
-    };
-
-    return (
-        <div className={`absolute w-32 h-32 bg-slate-100 rounded-2xl border-2 border-slate-300 shadow-inner flex items-center justify-center overflow-hidden ${classes}`}>
-            {dots()}
-        </div>
-    );
 }

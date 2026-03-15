@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ScoreBoard from '../ScoreBoard';
 import GameOver from '../GameOver';
+import ScaledGame from '../ScaledGame';
+import { soundManager } from '@/utils/soundManager';
 
 const CANVAS_WIDTH = 600;
 const CANVAS_HEIGHT = 200;
@@ -17,9 +19,15 @@ interface Rect {
   height: number;
 }
 
-export default function DinoDash() {
+export default function ScooterRun() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
+  
+  // Image Refs
+  const scooterImgRef = useRef<HTMLImageElement | null>(null);
+  const elephantImgRef = useRef<HTMLImageElement | null>(null);
+  const birdImgRef = useRef<HTMLImageElement | null>(null);
+  const [imagesLoaded, setImagesLoaded] = useState(false);
   
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
@@ -46,6 +54,7 @@ export default function DinoDash() {
   const jump = useCallback(() => {
     if (gameState.current.gameOver) return;
     if (gameState.current.dino.isGrounded) {
+      soundManager.playSynth('hover');
       gameState.current.dino.vy = JUMP_POWER;
       gameState.current.dino.isGrounded = false;
       
@@ -70,6 +79,29 @@ export default function DinoDash() {
   }, [jump]);
 
   useEffect(() => {
+    // Load images
+    let loadedCount = 0;
+    const onload = () => {
+      loadedCount++;
+      if (loadedCount === 3) setImagesLoaded(true);
+    };
+
+    const ts = `?t=${Date.now()}-v2`;
+    const scooter = new Image();
+    scooter.src = `/assets/games/scooter/player.png${ts}`;
+    scooter.onload = onload;
+    scooterImgRef.current = scooter;
+
+    const elephant = new Image();
+    elephant.src = `/assets/games/scooter/elephant.png${ts}`;
+    elephant.onload = onload;
+    elephantImgRef.current = elephant;
+
+    const bird = new Image();
+    bird.src = `/assets/games/scooter/bird.png${ts}`;
+    bird.onload = onload;
+    birdImgRef.current = bird;
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
@@ -132,9 +164,9 @@ export default function DinoDash() {
       const isFlying = Math.random() > 0.7;
       state.obstacles.push({
         x: CANVAS_WIDTH,
-        y: isFlying ? CANVAS_HEIGHT - 70 : CANVAS_HEIGHT - Math.random() * 20 - 20,
-        width: 20,
-        height: isFlying ? 20 : Math.random() * 20 + 20
+        y: isFlying ? CANVAS_HEIGHT - 85 : CANVAS_HEIGHT - 35, // Raised flying obstacle by 25px
+        width: isFlying ? 40 : 40,
+        height: isFlying ? 30 : 35
       });
     }
 
@@ -189,24 +221,31 @@ export default function DinoDash() {
         ctx.fillRect(p.x, p.y, 4, 4);
     });
 
-    // Draw Obstacles (Cactus / Bird representation)
-    ctx.fillStyle = '#ef4444'; // red-500
+    // Draw Obstacles (Elephant or Bird)
     state.obstacles.forEach(obs => {
-      ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-      ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-      ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+      // Differentiate by y coordinate rather than width
+      const isFlying = obs.y < CANVAS_HEIGHT - 50; 
+      const img = isFlying ? birdImgRef.current : elephantImgRef.current;
+      if (img && imagesLoaded) {
+          ctx.drawImage(img, obs.x, obs.y, obs.width, obs.height);
+      } else {
+          // Fallback
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+      }
     });
 
-    // Draw Dino
-    ctx.fillStyle = '#22c55e'; // green-500
+    // Draw Player (Scooter)
     const d = state.dino;
-    ctx.fillRect(d.x, d.y, d.width, d.height);
+    if (scooterImgRef.current && imagesLoaded) {
+        // The image might have built in padding, fine tune drawing boundaries
+        ctx.drawImage(scooterImgRef.current, d.x, d.y, d.width + 10, d.height);
+    } else {
+        ctx.fillStyle = '#22c55e';
+        ctx.fillRect(d.x, d.y, d.width, d.height);
+    }
     
-    // Dino Eye
-    ctx.fillStyle = 'white';
-    ctx.fillRect(d.x + 20, d.y + 5, 4, 4);
-    
-  }, []);
+  }, [imagesLoaded]);
 
   const gameLoop = useCallback(() => {
     update();
@@ -220,14 +259,20 @@ export default function DinoDash() {
   }, [gameLoop]);
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[600px]">
-        <ScoreBoard score={score} highScore={highScore} onRestart={initGame} title="Dino Dash" />
+    <ScaledGame logicalWidth={600} logicalHeight={350}>
+      <div className="w-full max-w-[600px] w-[600px]">
+        <ScoreBoard score={score} highScore={highScore} onRestart={initGame} title="Scooter Run" />
         
         <div 
           className="relative border-4 border-slate-700/50 rounded-2xl overflow-hidden bg-slate-900 shadow-2xl glass-card cursor-pointer"
           onPointerDown={jump}
         >
+          {!imagesLoaded && (
+              <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-20 text-white animate-pulse">
+                  Loading Assets...
+              </div>
+          )}
+
           <canvas
             ref={canvasRef}
             width={CANVAS_WIDTH}
@@ -247,11 +292,12 @@ export default function DinoDash() {
                 isNewHighScore={score >= highScore && score > 0}
                 onRestart={initGame}
                 title="Crashed!"
-                message="Watch out for the red obstacles!"
+                message="Watch out for the animals!"
+                gameId="scooter-run"
               />
           )}
         </div>
       </div>
-    </div>
+    </ScaledGame>
   );
 }

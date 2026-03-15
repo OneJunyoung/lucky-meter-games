@@ -1,0 +1,136 @@
+﻿node.exe : npm error c
+ode ERESOLVE
+위치 C:\Program Files\no
+dejs\npm.ps1:29 문자:3
++   & $NODE_EXE $NPM_C
+LI_JS $args
++   ~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo    
+          : NotSpecifi
+ed: (n    pm error cod
+e ERESOLV    E:String)
+ [], RemoteE    xcepti
+on
+    + FullyQualifiedEr
+ror    Id : NativeComm
+andErr    or
+ 
+npm error ERESOLVE cou
+ld not resolve
+npm error
+npm error While resolv
+ing: eslint-plugin-nex
+t-on-pages@1.13.16
+npm error Found: eslin
+t@9.39.4
+npm error node_modules
+/eslint
+npm error   dev eslint
+@"^9" from the root pr
+oject
+npm error   peer eslin
+t@"^6.0.0 || ^7.0.0 ||
+ >=8.0.0" from @eslint
+-community/eslint-util
+s@4.9.1
+npm error   node_modul
+es/@eslint-community/e
+slint-utils
+npm error     @eslint-
+community/eslint-utils
+@"^4.8.0" from eslint@
+9.39.4
+npm error     @eslint-
+community/eslint-utils
+@"^4.9.1" from @typesc
+ript-eslint/utils@8.57
+.0
+npm error     node_mod
+ules/@typescript-eslin
+t/utils
+npm error       @types
+cript-eslint/utils@"8.
+57.0" from @typescript
+-eslint/eslint-plugin@
+8.57.0
+npm error       node_m
+odules/@typescript-esl
+int/eslint-plugin
+npm error         @typ
+escript-eslint/eslint-
+plugin@"^5.4.2 || ^6.0
+.0 || ^7.0.0 || ^8.0.0
+" from eslint-config-n
+ext@15.1.0
+npm error         node
+_modules/eslint-config
+-next
+npm error       1 more
+ (@typescript-eslint/t
+ype-utils)
+npm error   10 more (e
+slint-import-resolver-
+typescript, ...)
+npm error
+npm error Could not re
+solve dependency:
+npm error peer eslint@
+"^4.0.0 || ^5.0.0 || ^
+6.0.0 || ^7.0.0 || ^8.
+0.0" from eslint-plugi
+n-next-on-pages@1.13.1
+6
+npm error node_modules
+/eslint-plugin-next-on
+-pages
+npm error   dev eslint
+-plugin-next-on-pages@
+"^1.13.16" from the ro
+ot project
+npm error
+npm error Conflicting 
+peer dependency: eslin
+t@8.57.1
+npm error node_modules
+/eslint
+npm error   peer eslin
+t@"^4.0.0 || ^5.0.0 ||
+ ^6.0.0 || ^7.0.0 || ^
+8.0.0" from eslint-plu
+gin-next-on-pages@1.13
+.16
+npm error   node_modul
+es/eslint-plugin-next-
+on-pages
+npm error     dev esli
+nt-plugin-next-on-page
+s@"^1.13.16" from the 
+root project
+npm error
+npm error Fix the upst
+ream dependency confli
+ct, or retry
+npm error this command
+ with --force or --leg
+acy-peer-deps
+npm error to accept an
+ incorrect (and potent
+ially broken) dependen
+cy resolution.
+npm error
+npm error
+npm error For a full r
+eport see:
+npm error C:\Users\won
+hi\AppData\Local\npm-c
+ache\_logs\2026-03-14T
+14_09_00_847Z-eresolve
+-report.txt
+npm error A complete l
+og of this run can be 
+found in: C:\Users\won
+hi\AppData\Local\npm-c
+ache\_logs\2026-03-14T
+14_09_00_847Z-debug-0.
+log

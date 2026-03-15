@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScoreBoard from '../ScoreBoard';
 import GameOver from '../GameOver';
+import ScaledGame from '../ScaledGame';
+import { soundManager } from '@/utils/soundManager';
 
 const CANDY_COLORS = [
   'bg-red-500', 
@@ -19,10 +21,10 @@ const boardSize = width * width;
 
 export default function CandyMatch() {
   const [board, setBoard] = useState<string[]>([]);
-  const [draggedCandyId, setDraggedCandyId] = useState<number | null>(null);
+  const [selectedCandyId, setSelectedCandyId] = useState<number | null>(null);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  const [movesLeft, setMovesLeft] = useState(20);
+  const [timeLeft, setTimeLeft] = useState(30);
   const [gameOver, setGameOver] = useState(false);
 
   // Initialize Board
@@ -32,7 +34,7 @@ export default function CandyMatch() {
     );
     setBoard(randomBoard);
     setScore(0);
-    setMovesLeft(20);
+    setTimeLeft(30);
     setGameOver(false);
   }, []);
 
@@ -78,6 +80,7 @@ export default function CandyMatch() {
     }
 
     if (matchFound) {
+      soundManager.playSynth('pop');
       setBoard(newBoard);
       setScore(s => s + 30);
     }
@@ -129,66 +132,79 @@ export default function CandyMatch() {
     return () => clearTimeout(timer);
   }, [checkMatches, pullDownCandies]);
 
-  // Handle Dragging
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
-    if(gameOver || movesLeft <= 0) return;
-    setDraggedCandyId(index);
-    e.dataTransfer.setData('text/plain', index.toString()); // Required for Firefox drag support
-  };
+  // Tick the clock
+  useEffect(() => {
+      if (gameOver || timeLeft <= 0) return;
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
-    e.preventDefault();
-    if (draggedCandyId === null || gameOver || movesLeft <= 0) return;
+      const countdown = setInterval(() => {
+          setTimeLeft(t => t - 1);
+      }, 1000);
 
-    
-    // Check adjacency (left, right, up, down)
-    const validMoves = [
-        draggedCandyId - 1, draggedCandyId + 1, 
-        draggedCandyId - width, draggedCandyId + width
-    ];
+      return () => clearInterval(countdown);
+  }, [gameOver, timeLeft]);
 
-    // Wrap around edge cases protection
-    const isLeftEdge = draggedCandyId % width === 0;
-    const isRightEdge = draggedCandyId % width === width - 1;
-    if (isLeftEdge && targetIndex === draggedCandyId - 1) { setDraggedCandyId(null); return; }
-    if (isRightEdge && targetIndex === draggedCandyId + 1) { setDraggedCandyId(null); return; }
+  // Handle Tap-to-Swap
+  const handleCandyTap = (index: number) => {
+    if (gameOver || timeLeft <= 0) return;
 
-    if (validMoves.includes(targetIndex)) {
-        const newBoard = [...board];
-        const temp = newBoard[targetIndex];
-        newBoard[targetIndex] = newBoard[draggedCandyId];
-        newBoard[draggedCandyId] = temp;
-        
-        setBoard(newBoard);
-        setMovesLeft(m => m - 1);
-        setDraggedCandyId(null);
+    if (selectedCandyId === null) {
+        // Select first candy
+        setSelectedCandyId(index);
+        soundManager.playSynth('hover');
+    } else if (selectedCandyId === index) {
+        // Deselect if tapping the same candy
+        setSelectedCandyId(null);
     } else {
-        setDraggedCandyId(null); // Reset if invalid move
-    }
-  };
+        // Attempt swap
+        const targetIndex = index;
+        
+        // Check adjacency (left, right, up, down)
+        const validMoves = [
+            selectedCandyId - 1, selectedCandyId + 1, 
+            selectedCandyId - width, selectedCandyId + width
+        ];
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
+        // Wrap around edge cases protection
+        const isLeftEdge = selectedCandyId % width === 0;
+        const isRightEdge = selectedCandyId % width === width - 1;
+        if (isLeftEdge && targetIndex === selectedCandyId - 1) { setSelectedCandyId(targetIndex); soundManager.playSynth('hover'); return; }
+        if (isRightEdge && targetIndex === selectedCandyId + 1) { setSelectedCandyId(targetIndex); soundManager.playSynth('hover'); return; }
+
+        if (validMoves.includes(targetIndex)) {
+            // Valid swap!
+            const newBoard = [...board];
+            const temp = newBoard[targetIndex];
+            newBoard[targetIndex] = newBoard[selectedCandyId];
+            newBoard[selectedCandyId] = temp;
+            
+            setBoard(newBoard);
+            setSelectedCandyId(null);
+        } else {
+            // Invalid swap (tapped far away), just change selection
+            setSelectedCandyId(targetIndex);
+            soundManager.playSynth('hover');
+        }
+    }
   };
 
   // Game Over handling
   useEffect(() => {
-      if(movesLeft <= 0 && !gameOver) {
+      if(timeLeft <= 0 && !gameOver) {
           setGameOver(true);
           if(score > highScore) setHighScore(score);
       }
-  }, [movesLeft, score, highScore, gameOver]);
+  }, [timeLeft, score, highScore, gameOver]);
 
 
   return (
-    <div className="w-full h-full flex items-center justify-center p-4">
-      <div className="flex flex-col items-center w-full max-w-[400px]">
+    <ScaledGame logicalWidth={400} logicalHeight={520}>
+      <div className="flex flex-col items-center w-full max-w-[400px] w-[400px]">
         
         <ScoreBoard 
             score={score} 
             highScore={highScore} 
             onRestart={createBoard} 
-            title={`Moves: ${movesLeft}`} 
+            title={`Time Left: ${timeLeft}s`} 
         />
 
         <div 
@@ -199,16 +215,13 @@ export default function CandyMatch() {
                 <div
                     key={idx}
                     className="w-full h-full p-0.5"
-                    onDragOver={handleDragOver}
-                    onDrop={(e) => handleDrop(e, idx)}
+                    onClick={() => handleCandyTap(idx)}
                 >
                     <motion.div
                         layoutId={`candy-${idx}`}
-                        className={`w-full h-full rounded-md shadow-inner cursor-pointer ${color} hover:brightness-110 active:scale-90 transition-all`}
-                        draggable={!gameOver}
-                        onDragStart={(e) => handleDragStart(e as unknown as React.DragEvent<HTMLDivElement>, idx)}
+                        className={`w-full h-full rounded-md shadow-inner cursor-pointer ${color} hover:brightness-110 active:scale-90 transition-all ${selectedCandyId === idx ? 'ring-4 ring-white scale-90 z-10 shadow-2xl' : ''}`}
                         initial={{ opacity: 0, scale: 0 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        animate={{ opacity: 1, scale: selectedCandyId === idx ? 0.9 : 1 }}
                         exit={{ opacity: 0, scale: 0 }}
                         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                     />
@@ -224,14 +237,15 @@ export default function CandyMatch() {
                     score={score}
                     isNewHighScore={score > highScore}
                     onRestart={createBoard}
-                    title="Out of Moves!"
+                    title="Time's Up!"
                     message="Can you score higher next time?"
+                    gameId="candy-match"
                 />
             </div>
           )}
 
         </div>
       </div>
-    </div>
+    </ScaledGame>
   );
 }

@@ -1,172 +1,346 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Bot, Users } from 'lucide-react';
 import ScoreBoard from '../ScoreBoard';
 import GameOver from '../GameOver';
+import ScaledGame from '../ScaledGame';
+import { soundManager } from '@/utils/soundManager';
 
 const BOARD_SIZE = 15;
 
 type Player = 'black' | 'white' | null;
+type GameMode = 'vs-ai' | 'pvp';
 
 export default function Gomoku() {
+  const [mode, setMode] = useState<GameMode>('vs-ai');
   const [board, setBoard] = useState<Player[][]>(
     Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null))
   );
-  const [isPlayerTurn, setIsPlayerTurn] = useState(true); // Player is Black
+  
+  const [currentPlayer, setCurrentPlayer] = useState<Player>('black');
   const [winner, setWinner] = useState<Player | 'draw'>(null);
-  const [score, setScore] = useState(0); // Win count
-  const [highScore, setHighScore] = useState(0);
+  
+  // Scores
+  const [scoreAI, setScoreAI] = useState(0); 
+  const [highScoreAI, setHighScoreAI] = useState(0);
+  const [scorePvP, setScorePvP] = useState(0);
+  const [highScorePvP, setHighScorePvP] = useState(0);
 
-  const initGame = useCallback(() => {
+  const initGame = useCallback((newMode?: GameMode) => {
     setBoard(Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null)));
-    setIsPlayerTurn(true);
+    setCurrentPlayer('black');
     setWinner(null);
+    if(newMode) setMode(newMode);
   }, []);
+
+  const changeMode = (newMode: GameMode) => {
+      if(newMode === mode) return;
+      soundManager.playSynth('click');
+      initGame(newMode);
+  };
 
   const checkWin = (grid: Player[][], r: number, c: number, targetPlayer: Player): boolean => {
     const directions = [
-      [1, 0], [0, 1], [1, 1], [1, -1] // Horizontal, Vertical, Diagonal D, Diagonal U
+      [1, 0], [0, 1], [1, 1], [1, -1] 
     ];
 
     for (const [dr, dc] of directions) {
       let count = 1;
-      // Forward
       for (let i = 1; i < 5; i++) {
         const nr = r + dr * i;
         const nc = c + dc * i;
         if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && grid[nr][nc] === targetPlayer) count++;
         else break;
       }
-      // Backward
       for (let i = 1; i < 5; i++) {
         const nr = r - dr * i;
         const nc = c - dc * i;
         if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && grid[nr][nc] === targetPlayer) count++;
         else break;
       }
-      
       if (count >= 5) return true;
     }
     return false;
   };
 
   const handleCellClick = (r: number, c: number) => {
-    if (!isPlayerTurn || winner || board[r][c] !== null) return;
+    // If it's vs-ai and it's White's turn, ignore clicks
+    if (mode === 'vs-ai' && currentPlayer === 'white') return;
+    if (winner || board[r][c] !== null) return;
+    
+    soundManager.playSynth('pop');
 
-    // Player Move
     const newBoard = board.map(row => [...row]);
-    newBoard[r][c] = 'black';
+    newBoard[r][c] = currentPlayer;
     setBoard(newBoard);
     
-    if (checkWin(newBoard, r, c, 'black')) {
-      setWinner('black');
-      setScore(s => s + 1);
-      if(score + 1 > highScore) setHighScore(score + 1);
+    if (checkWin(newBoard, r, c, currentPlayer)) {
+      setWinner(currentPlayer);
+      if(mode === 'vs-ai' && currentPlayer === 'black') {
+          setScoreAI(s => {
+             const newScore = s + 1;
+             setHighScoreAI(h => Math.max(h, newScore));
+             return newScore;
+          });
+      }
+      if(mode === 'pvp') {
+          setScorePvP(s => {
+             const newScore = s + 1;
+             setHighScorePvP(h => Math.max(h, newScore));
+             return newScore;
+          });
+      }
       return;
     }
 
-    setIsPlayerTurn(false);
+    if (newBoard.every(row => row.every(cell => cell !== null))) {
+        setWinner('draw');
+        return;
+    }
+
+    setCurrentPlayer(prev => prev === 'black' ? 'white' : 'black');
   };
 
-  // Simple rule-based AI
-  // Note: Minimax is too heavy for 15x15 without deep optimizations, using a heuristic weighting
-  useEffect(() => {
-    if (isPlayerTurn || winner) return;
+  // --- HARD AI HEURISTIC LOGIC ---
+  
+  // Evaluates a single line of consecutive pieces in one direction
+  const evaluateDirection = (grid: Player[][], r: number, c: number, dr: number, dc: number, player: Player): number => {
+      let count = 1;
+      let blockedEnds = 0;
 
-    // Simulate thinking delay
+      // Forward
+      let i = 1;
+      while (true) {
+          const nr = r + dr * i;
+          const nc = c + dc * i;
+          if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
+              blockedEnds++;
+              break;
+          }
+          if (grid[nr][nc] === player) {
+              count++;
+          } else if (grid[nr][nc] !== null) {
+              blockedEnds++;
+              break;
+          } else {
+              // Empty space
+              break;
+          }
+          i++;
+      }
+
+      // Backward
+      i = 1;
+      while (true) {
+          const nr = r - dr * i;
+          const nc = c - dc * i;
+          if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) {
+              blockedEnds++;
+              break;
+          }
+          if (grid[nr][nc] === player) {
+              count++;
+          } else if (grid[nr][nc] !== null) {
+              blockedEnds++;
+              break;
+          } else {
+              break;
+          }
+          i++;
+      }
+
+      if (count >= 5) return 10000000; // Win
+      
+      if (count === 4) {
+          if (blockedEnds === 0) return 1000000; // Open 4 (guaranteed win next turn)
+          if (blockedEnds === 1) return 100000;  // Blocked 4 (must defend/attack immediately)
+      }
+      
+      if (count === 3) {
+          if (blockedEnds === 0) return 50000; // Open 3 (deadly if unchecked)
+          if (blockedEnds === 1) return 10000;
+      }
+
+      if (count === 2) {
+          if (blockedEnds === 0) return 5000;
+          if (blockedEnds === 1) return 500;
+      }
+
+      if (count === 1) {
+          if (blockedEnds === 0) return 10;
+      }
+
+      return 0;
+  };
+
+  const evaluateCell = (grid: Player[][], r: number, c: number, player: Player): number => {
+      let score = 0;
+      const directions = [ [1, 0], [0, 1], [1, 1], [1, -1] ];
+      for (const [dr, dc] of directions) {
+          score += evaluateDirection(grid, r, c, dr, dc, player);
+      }
+      return score;
+  };
+
+  useEffect(() => {
+    // Only AI plays when mode is vs-ai and it's white's turn
+    if (mode === 'pvp' || currentPlayer === 'black' || winner) return;
+
+    // Simulate thinking delay so it feels natural
     const timer = setTimeout(() => {
       let bestScore = -Infinity;
-      let move = { r: -1, c: -1 };
+      let bestMoves: {r: number, c: number}[] = [];
       
       const newBoard = board.map(row => [...row]);
 
-      // Simple heuristic: block player's wins immediately if possible, or build lines
-      // For token limits, checking random empty spot if no immediate blocks are detected, but ideally we evaluate all empty cells
-      // 1. Find all empty cells adjacent to pieces to limit search space
+      // Optimize: Only check empty cells that are adjacent to at least one placed piece (max radius 2)
       const candidates: {r: number, c: number}[] = [];
+      let isBoardEmpty = true;
+
       for(let i=0; i<BOARD_SIZE; i++){
           for(let j=0; j<BOARD_SIZE; j++){
-              if(newBoard[i][j] === null) {
-                  // Check neighbors 1 step away
-                  let hasNeighbor = false;
-                  for(let di=-1; di<=1; di++) {
-                      for(let dj=-1; dj<=1; dj++){
-                          if(i+di >= 0 && i+di < BOARD_SIZE && j+dj >= 0 && j+dj < BOARD_SIZE && newBoard[i+di][j+dj] !== null) {
-                              hasNeighbor = true;
-                          }
+              if(newBoard[i][j] !== null) {
+                  isBoardEmpty = false;
+                  continue;
+              }
+              // Check neighbors within 2 steps
+              let hasNeighbor = false;
+              for(let di=-2; di<=2; di++) {
+                  for(let dj=-2; dj<=2; dj++){
+                      if(i+di >= 0 && i+di < BOARD_SIZE && j+dj >= 0 && j+dj < BOARD_SIZE && newBoard[i+di][j+dj] !== null) {
+                          hasNeighbor = true;
                       }
                   }
-                  if(hasNeighbor) candidates.push({r: i, c: j});
               }
+              if(hasNeighbor) candidates.push({r: i, c: j});
           }
       }
 
-      if (candidates.length === 0) {
-          // AI makes first move in center if board was empty (not usually applicable here)
-          move = { r: Math.floor(BOARD_SIZE/2), c: Math.floor(BOARD_SIZE/2) };
+      if (isBoardEmpty) {
+          // AI plays center if it happens to go first (not currently standard, but good fallback)
+          bestMoves.push({ r: Math.floor(BOARD_SIZE/2), c: Math.floor(BOARD_SIZE/2) });
       } else {
-         // Evaluate (Very basic block / win weight)
          for (const cand of candidates) {
-             let cellScore = 0;
-             
-             // Check if AI can win here
+             // 1. How good is this move for AI offensively?
              newBoard[cand.r][cand.c] = 'white';
-             if (checkWin(newBoard, cand.r, cand.c, 'white')) {
-                  cellScore += 10000;
-             }
+             const offendScore = evaluateCell(newBoard, cand.r, cand.c, 'white');
              newBoard[cand.r][cand.c] = null;
 
-             // Check if Player is about to win here
+             // 2. How critical is this move for stopping the Player?
              newBoard[cand.r][cand.c] = 'black';
-             if (checkWin(newBoard, cand.r, cand.c, 'black')) {
-                  cellScore += 5000; // Block must be prioritized just below winning
-             }
+             const defendScore = evaluateCell(newBoard, cand.r, cand.c, 'black');
              newBoard[cand.r][cand.c] = null;
-             
-             // Add random noise for variety if scores are equal
-             cellScore += Math.random() * 10;
 
-             if (cellScore > bestScore) {
-                 bestScore = cellScore;
-                 move = cand;
+             // Defensive plays are heavily weighted slightly higher to ensure blocks happen if scores tie
+             const totalScore = offendScore + (defendScore * 1.05);
+
+             if (totalScore > bestScore) {
+                 bestScore = totalScore;
+                 bestMoves = [cand];
+             } else if (totalScore === bestScore) {
+                 bestMoves.push(cand);
              }
          }
       }
 
-      if (move.r !== -1) {
+      // Pick randomly from equal best moves to prevent totally deterministic games
+      const move = bestMoves[Math.floor(Math.random() * bestMoves.length)];
+
+      if (move) {
           newBoard[move.r][move.c] = 'white';
           setBoard(newBoard);
+          soundManager.playSynth('pop'); 
+          
           if (checkWin(newBoard, move.r, move.c, 'white')) {
              setWinner('white');
           } else {
-             // Check draw
              if (newBoard.every(row => row.every(cell => cell !== null))) {
                  setWinner('draw');
              } else {
-                 setIsPlayerTurn(true);
+                 setCurrentPlayer('black');
              }
           }
       }
-    }, 500);
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [isPlayerTurn, board, winner]);
+  }, [currentPlayer, board, winner, mode]);
+
+
+  // Determine Titles
+  let displayTitle = '';
+  if (mode === 'vs-ai') {
+      displayTitle = currentPlayer === 'black' ? "Your Turn (Black)" : "AI thinking... (White)";
+  } else {
+      displayTitle = currentPlayer === 'black' ? "Black's Turn" : "White's Turn";
+  }
+
+  const getGameOverTitle = () => {
+       if (winner === 'draw') return "Draw!";
+       if (mode === 'vs-ai') {
+           return winner === 'black' ? 'Victory!' : 'Defeat!';
+       } else {
+           return winner === 'black' ? 'Black Wins!' : 'White Wins!';
+       }
+  };
+
+  const getGameOverMessage = () => {
+      if(winner === 'draw') return "The board is full.";
+      if (mode === 'vs-ai') {
+          return winner === 'black' ? 'You lined up 5 in a row!' : 'The advanced AI outsmarted you.';
+      } else {
+          return `${winner === 'black' ? 'Black' : 'White'} matched 5 in a row!`;
+      }
+  };
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-[500px]">
-        <ScoreBoard score={score} highScore={highScore} onRestart={initGame} title={isPlayerTurn ? "Your Turn (Black)" : "AI Turn (White)"} />
+    <ScaledGame logicalWidth={500} logicalHeight={720}>
+      <div className="w-full max-w-[500px] w-[500px]">
         
-        <div className="bg-[#DEB887] p-4 rounded-xl shadow-2xl relative w-full aspect-square border-4 border-[#8B4513]">
+        {/* Top bar with Mode Toggle */}
+        <div className="flex bg-slate-900/50 rounded-2xl p-2 mb-4 shadow-xl border border-white/5 backdrop-blur-sm gap-2 w-full">
+            <button 
+                onClick={() => changeMode('vs-ai')}
+                className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                    mode === 'vs-ai' 
+                    ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30' 
+                    : 'bg-transparent text-slate-400 hover:bg-white/5'
+                }`}
+            >
+                <Bot className="w-5 h-5" />
+                Vs AI
+            </button>
+            <button 
+                onClick={() => changeMode('pvp')}
+                className={`flex-1 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all ${
+                    mode === 'pvp' 
+                    ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30' 
+                    : 'bg-transparent text-slate-400 hover:bg-white/5'
+                }`}
+            >
+                <Users className="w-5 h-5" />
+                Play with Friend
+            </button>
+        </div>
+
+        <ScoreBoard 
+           score={mode === 'vs-ai' ? scoreAI : scorePvP} 
+           highScore={mode === 'vs-ai' ? Math.max(scoreAI, highScoreAI) : Math.max(scorePvP, highScorePvP)} 
+           onRestart={() => initGame()} 
+           title={displayTitle} 
+        />
+        
+        <div className="bg-[#DEB887] p-2 sm:p-4 rounded-xl shadow-2xl relative w-full aspect-square border-4 border-[#8B4513]">
           <div className="grid w-full h-full relative" style={{ gridTemplateColumns: `repeat(${BOARD_SIZE}, 1fr)`, gridTemplateRows: `repeat(${BOARD_SIZE}, 1fr)` }}>
             {/* Draw lines */}
             <div className="absolute inset-0 pointer-events-none">
               {Array.from({ length: BOARD_SIZE }).map((_, i) => (
-                <div key={`h-${i}`} className="absolute bg-[#8B4513]/50 w-full" style={{ height: '1px', top: `calc(${(i * 100) / BOARD_SIZE}% + ${100 / BOARD_SIZE / 2}%)` }} />
+                <div key={`h-${i}`} className="absolute bg-[#8B4513]/50 w-full" style={{ height: '1.5px', top: `calc(${(i * 100) / BOARD_SIZE}% + ${100 / BOARD_SIZE / 2}%)` }} />
               ))}
               {Array.from({ length: BOARD_SIZE }).map((_, i) => (
-                <div key={`v-${i}`} className="absolute bg-[#8B4513]/50 h-full" style={{ width: '1px', left: `calc(${(i * 100) / BOARD_SIZE}% + ${100 / BOARD_SIZE / 2}%)` }} />
+                <div key={`v-${i}`} className="absolute bg-[#8B4513]/50 h-full" style={{ width: '1.5px', left: `calc(${(i * 100) / BOARD_SIZE}% + ${100 / BOARD_SIZE / 2}%)` }} />
               ))}
             </div>
 
@@ -179,8 +353,8 @@ export default function Gomoku() {
                   onClick={() => handleCellClick(r, c)}
                 >
                     {/* Hover indicator */}
-                    {!cell && isPlayerTurn && !winner && (
-                        <div className="w-[60%] h-[60%] rounded-full bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    {!cell && !winner && (mode === 'pvp' || currentPlayer === 'black') && (
+                        <div className={`w-[60%] h-[60%] rounded-full opacity-0 group-hover:opacity-40 transition-opacity ${currentPlayer === 'black' ? 'bg-black' : 'bg-white'}`} flex-shrink-0 />
                     )}
                     
                     {/* Piece */}
@@ -188,9 +362,15 @@ export default function Gomoku() {
                         <motion.div 
                           initial={{ scale: 0, opacity: 0 }}
                           animate={{ scale: 1, opacity: 1 }}
-                          className={`w-[80%] h-[80%] rounded-full shadow-lg ${cell === 'black' ? 'bg-black' : 'bg-white'}`}
+                          className={`w-[85%] h-[85%] rounded-full shadow-lg flex-shrink-0 ${
+                              cell === 'black' 
+                               ? 'bg-gradient-to-br from-slate-700 to-black ring-1 ring-black/50' 
+                               : 'bg-gradient-to-br from-white to-slate-200 ring-1 ring-black/20'
+                          }`}
                         />
                     )}
+
+                    {/* Highlight last move loosely by adding a tiny inner ring if we ever track it, keeping it clean for now */}
                 </div>
               ))
             )}
@@ -199,15 +379,15 @@ export default function Gomoku() {
           {winner && (
               <GameOver 
                 isOpen={!!winner}
-                score={score}
-                isNewHighScore={winner === 'black' && score > highScore}
-                onRestart={initGame}
-                title={winner === 'black' ? 'Victory!' : winner === 'white' ? 'Defeat!' : 'Draw!'}
-                message={winner === 'black' ? 'You lined up 5 in a row!' : 'The AI outsmarted you.'}
+                score={mode === 'vs-ai' ? scoreAI : scorePvP}
+                isNewHighScore={false}
+                onRestart={() => initGame()}
+                title={getGameOverTitle()}
+                message={getGameOverMessage()}
               />
           )}
         </div>
       </div>
-    </div>
+    </ScaledGame>
   );
 }

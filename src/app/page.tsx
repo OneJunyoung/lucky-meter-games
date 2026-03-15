@@ -3,11 +3,12 @@
 import { motion, Variants } from 'framer-motion';
 import { Candy, CircleDashed, Gamepad2, Dices, Route, Shuffle, Grid3X3, Play } from 'lucide-react';
 import Link from 'next/link';
+import { soundManager } from '@/utils/soundManager';
 
 const GAMES = [
   { slug: 'candy-match', title: 'Candy Match', icon: Candy, color: 'from-pink-500 to-rose-400', shadow: 'shadow-pink-500/20' },
   { slug: 'bubble-pop', title: 'Bubble Pop', icon: CircleDashed, color: 'from-cyan-400 to-blue-500', shadow: 'shadow-cyan-500/20' },
-  { slug: 'dino-dash', title: 'Dino Dash', icon: Gamepad2, color: 'from-emerald-400 to-green-500', shadow: 'shadow-emerald-500/20' },
+  { slug: 'scooter-run', title: 'Scooter Run', icon: Gamepad2, color: 'from-emerald-400 to-green-500', shadow: 'shadow-emerald-500/20' },
   { slug: 'dice-roll', title: 'Dice Roll', icon: Dices, color: 'from-amber-400 to-orange-500', shadow: 'shadow-amber-500/20' },
   { slug: 'ghost-leg', title: 'Ghost Leg', icon: Route, color: 'from-violet-400 to-purple-500', shadow: 'shadow-violet-500/20' },
   { slug: 'drawing-lots', title: 'Drawing Lots', icon: Shuffle, color: 'from-red-400 to-rose-600', shadow: 'shadow-red-500/20' },
@@ -91,8 +92,9 @@ export default function Home() {
                     Play {game.title.toLowerCase()} and test your skills in this quick mini-game.
                   </p>
 
-                  <Link href={`/games/${game.slug}`} className="block mt-auto">
+                  <Link href={`/games/${game.slug}`} className="block mt-auto" onClick={() => soundManager.playSynth('success')}>
                     <motion.button
+                      onMouseEnter={() => soundManager.playSynth('hover')}
                       whileTap={{ scale: 0.95 }}
                       className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-medium flex items-center justify-center gap-2 transition-colors relative overflow-hidden group/btn"
                     >
